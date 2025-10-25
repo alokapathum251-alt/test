@@ -1,0 +1,414 @@
+# UBT-starter-repo — Full starter files (React + Vite + Firebase)
+
+Below are the full files for a minimal UBT (Ubiquitous-Based Test) starter repo. Copy each file into your project folder with the same path and filenames.
+
+---
+
+### FILE: package.json
+```json
+{
+  "name": "ubt-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^10.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.14.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
+```
+
+---
+
+### FILE: .gitignore
+```
+node_modules/
+.env
+/dist
+/.firebase
+/firebase-debug.log
+```
+
+---
+
+### FILE: README.md
+```
+# UBT Starter Repo (React + Firebase)
+
+Instructions:
+1. Copy files to a local folder.
+2. Replace firebase config in `src/firebase.js` with your Firebase project's config.
+3. Install dependencies: `npm install`.
+4. Run locally: `npm run dev`.
+5. Create a GitHub repo, push, and (optionally) add GitHub Actions + FIREBASE_TOKEN to auto-deploy.
+
+See the Admin page at `/admin` and Student page at `/exam`.
+```
+
+---
+
+### FILE: vite.config.js
+```js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+})
+```
+
+---
+
+### FILE: public/index.html
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UBT Starter</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+```
+
+---
+
+### FILE: src/main.jsx
+```jsx
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App'
+import './styles.css'
+
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+)
+```
+
+---
+
+### FILE: src/styles.css
+```css
+body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', sans-serif; margin:0 }
+nav { background:#f7f7f7; border-bottom:1px solid #eee }
+.container { padding:20px }
+input, textarea, select, button { font-family: inherit }
+```
+
+---
+
+### FILE: src/App.jsx
+```jsx
+import React from 'react'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import AdminDashboard from './pages/AdminDashboard'
+import StudentExam from './pages/StudentExam'
+
+export default function App(){
+  return (
+    <BrowserRouter>
+      <nav style={{padding:12}}>
+        <Link to="/">Home</Link>{" | "}
+        <Link to="/admin">Admin</Link>{" | "}
+        <Link to="/exam">Exam</Link>
+      </nav>
+      <div className="container">
+        <Routes>
+          <Route path="/" element={<div><h1>UBT Starter</h1><p>Use /admin to add questions and /exam to take the exam.</p></div>} />
+          <Route path="/admin" element={<AdminDashboard/>} />
+          <Route path="/exam" element={<StudentExam/>} />
+        </Routes>
+      </div>
+    </BrowserRouter>
+  )
+}
+```
+
+---
+
+### FILE: src/firebase.js
+```js
+// IMPORTANT: replace the values below with your Firebase project's config
+import { initializeApp } from 'firebase/app'
+import { getAuth } from 'firebase/auth'
+import { getFirestore, doc, getDoc } from 'firebase/firestore'
+
+const firebaseConfig = {
+  apiKey: 'REPLACE_API_KEY',
+  authDomain: 'REPLACE_AUTH_DOMAIN',
+  projectId: 'REPLACE_PROJECT_ID',
+  storageBucket: 'REPLACE_STORAGE_BUCKET',
+  messagingSenderId: 'REPLACE_MSG_ID',
+  appId: 'REPLACE_APP_ID'
+}
+
+const app = initializeApp(firebaseConfig)
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+
+// helper: check admin by existence of docs/admins/{uid}
+export async function isAdmin(uid){
+  if(!uid) return false
+  try{
+    const snap = await getDoc(doc(db, 'admins', uid))
+    return snap.exists()
+  }catch(e){
+    console.error('isAdmin error', e)
+    return false
+  }
+}
+```
+
+---
+
+### FILE: src/components/AdminAddQuestion.jsx
+```jsx
+import React, {useState} from 'react'
+import { collection, addDoc } from 'firebase/firestore'
+import { db } from '../firebase'
+
+export default function AdminAddQuestion({ examId = 'demo-exam-1' }){
+  const [type, setType] = useState('mcq')
+  const [text, setText] = useState('')
+  const [choices, setChoices] = useState(['','','',''])
+  const [correctIndex, setCorrectIndex] = useState(0)
+  const [marks, setMarks] = useState(1)
+
+  async function handleSubmit(e){
+    e.preventDefault()
+    const payload = {
+      examId,
+      type,
+      text,
+      marks: Number(marks),
+      order: Date.now()
+    }
+    if(type === 'mcq'){
+      payload.choices = choices.map((c, idx) => ({ id: String(idx), text: c }))
+      payload.correctChoiceId = String(correctIndex)
+    }
+    await addDoc(collection(db, 'questions'), payload)
+    alert('Question added')
+    setText('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{maxWidth:700}}>
+      <div>
+        <label>Type: </label>
+        <select value={type} onChange={e=>setType(e.target.value)}>
+          <option value="mcq">MCQ</option>
+          <option value="short">Short Answer</option>
+        </select>
+      </div>
+
+      <div style={{marginTop:8}}>
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Question text" rows={3} style={{width:'100%'}} />
+      </div>
+
+      {type === 'mcq' && (
+        <div style={{marginTop:8}}>
+          {choices.map((c,i)=> (
+            <div key={i} style={{display:'flex', gap:8, alignItems:'center', marginBottom:6}}>
+              <input value={c} onChange={e=>{ const arr=[...choices]; arr[i]=e.target.value; setChoices(arr)}} placeholder={`Choice ${i+1}`} />
+              <label><input type="radio" name="correct" checked={String(i)===String(correctIndex)} onChange={()=>setCorrectIndex(i)} /> correct</label>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{marginTop:8}}>
+        <label>Marks: </label>
+        <input type="number" value={marks} onChange={e=>setMarks(e.target.value)} min={0} />
+      </div>
+
+      <div style={{marginTop:12}}>
+        <button type="submit">Add Question</button>
+      </div>
+    </form>
+  )
+}
+```
+
+---
+
+### FILE: src/pages/AdminDashboard.jsx
+```jsx
+import React from 'react'
+import AdminAddQuestion from '../components/AdminAddQuestion'
+
+export default function AdminDashboard(){
+  const examId = 'demo-exam-1' // simple default; extend to create/manage exams
+  return (
+    <div>
+      <h2>Admin Dashboard</h2>
+      <p>Exam ID: <strong>{examId}</strong></p>
+      <AdminAddQuestion examId={examId} />
+      <hr />
+      <p>Open Firebase Console → Firestore to view created questions.</p>
+    </div>
+  )
+}
+```
+
+---
+
+### FILE: src/pages/StudentExam.jsx
+```jsx
+import React, {useEffect, useState} from 'react'
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
+import { db } from '../firebase'
+
+export default function StudentExam(){
+  const [questions, setQuestions] = useState([])
+  const [answers, setAnswers] = useState({})
+
+  useEffect(()=>{
+    async function load(){
+      const q = query(collection(db, 'questions'), where('examId', '==', 'demo-exam-1'))
+      const snap = await getDocs(q)
+      setQuestions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    }
+    load()
+  },[])
+
+  function handleAnswer(qId, value){
+    setAnswers(prev => ({...prev, [qId]: value}))
+  }
+
+  function calculateScore(questions, answers){
+    let total = 0
+    for(const q of questions){
+      const ans = answers[q.id]
+      if(!ans) continue
+      if(q.type === 'mcq'){
+        if(String(ans) === String(q.correctChoiceId)) total += (q.marks || 1)
+      }
+    }
+    return total
+  }
+
+  async function handleSubmit(){
+    const totalMarks = calculateScore(questions, answers)
+    await addDoc(collection(db, 'submissions'), {
+      examId: 'demo-exam-1',
+      userId: 'anonymous',
+      startedAt: serverTimestamp(),
+      submittedAt: serverTimestamp(),
+      answers,
+      totalMarks,
+      autoMarked: true
+    })
+    alert('Submitted — score: ' + totalMarks)
+  }
+
+  return (
+    <div>
+      <h2>Student Exam (Demo)</h2>
+      {questions.length === 0 && <div>No questions yet — ask admin to add some.</div>}
+      {questions.map(q => (
+        <div key={q.id} style={{border:'1px solid #eee', padding:10, marginBottom:8}}>
+          <div><b>Q:</b> {q.text}</div>
+          {q.type === 'mcq' && q.choices?.map(c => (
+            <div key={c.id}><label><input type="radio" name={q.id} onChange={()=>handleAnswer(q.id, c.id)} /> {c.text}</label></div>
+          ))}
+          {q.type === 'short' && (
+            <div><textarea rows={3} style={{width:'100%'}} onChange={e=>handleAnswer(q.id, e.target.value)} placeholder="Your answer" /></div>
+          )}
+        </div>
+      ))}
+
+      {questions.length > 0 && (
+        <div style={{marginTop:12}}>
+          <button onClick={handleSubmit}>Submit Exam</button>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+---
+
+### FILE: .github/workflows/firebase-hosting-merge.yml
+```yaml
+name: Deploy to Firebase Hosting on push to main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          npm install -g firebase-tools
+          firebase deploy --only hosting --token "$FIREBASE_TOKEN"
+```
+
+---
+
+# Quick usage steps (copy these into your terminal after creating files)
+
+```
+# 1. install deps
+npm install
+
+# 2. run dev
+npm run dev
+
+# 3. create GitHub repo and push
+git init
+git add .
+git commit -m "Initial UBT starter"
+# create repo on GitHub, then:
+# git remote add origin https://github.com/<you>/ubt-app.git
+# git branch -M main
+# git push -u origin main
+
+# 4. (optional) generate firebase token for GitHub Actions
+# npm install -g firebase-tools
+# firebase login
+# firebase login:ci
+```
+
+---
+
+If you want, I can also:
+- generate a ZIP of these files for download, or
+- paste the same files in a GitHub Gist,
+- or: add Firebase rules and a small Auth UI (sign-in / sign-up) in the repo.
+
+Tell me which additional step you want and I will proceed.
